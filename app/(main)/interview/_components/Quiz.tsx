@@ -6,8 +6,9 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { AlertCircle, CheckCircle2, XCircle } from "lucide-react";
+import { AlertCircle, CheckCircle2, XCircle, Timer } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { toast } from 'sonner';
 
 const Quiz = () => {
     const [currentQuestion, setCurrentQuestion] = useState(0);
@@ -15,6 +16,7 @@ const Quiz = () => {
     const [showExplanation, setShowExplanation] = useState(false);
     const [quizStarted, setQuizStarted] = useState(false);
     const [loadingQuiz, setLoadingQuiz] = useState(false);
+    const [quizCompleted, setQuizCompleted] = useState(false);
 
     const {
         loading: generatingQuiz,
@@ -22,27 +24,21 @@ const Quiz = () => {
         data: quizData,
         error
     } = useFetch(generateQuiz);
-    console.log("QUIZ DATA: ", quizData)
 
-    const {loading: savingResult, fn: saveQuizResultFn, data: resultData, setData: setResultData} = useFetch(saveQuiz);
-
-    const showResult = async() =>{
-        try {
-            await saveQuizResultFn(answers);
-            console.log(resultData);;
-        } catch (error) {
-            
-        }
-    }
+    const {
+        loading: savingResult,
+        fn: saveQuizResultFn,
+        error: saveError
+    } = useFetch(saveQuiz);
 
     const startQuiz = async () => {
         setLoadingQuiz(true);
         try {
-            const response =await generateQuizFn();
-            console.log(response)
+            await generateQuizFn();
             setQuizStarted(true);
+            toast.success("Quiz generated successfully!");
         } catch (err) {
-            console.error("Error generating quiz:", err);
+            toast.error("Failed to generate quiz. Please try again.");
         } finally {
             setLoadingQuiz(false);
         }
@@ -53,9 +49,56 @@ const Quiz = () => {
         setShowExplanation(true);
     };
 
+    const calculateScore = () => {
+        let correct = 0;
+        answers.forEach((answer, index) => {
+            if (answer === quizData[index].correctAnswer) {
+                correct++;
+            }
+        });
+        return (correct / quizData?.length) * 100;
+    };
+
+    const finishQuiz = async () => {
+        const score = calculateScore();
+        
+        // Format the quiz data to match the expected type
+        const quizResults = {
+            questions: quizData.map((q, index) => ({
+                question: q.question,
+                options: q.options,
+                correctAnswer: q.correctAnswer,
+                explanation: q.explanation,
+                userAnswer: answers[index]
+            })),
+            score: score,
+            totalQuestions: quizData.length,
+            correctAnswers: answers.filter((answer, index) => 
+                answer === quizData[index].correctAnswer
+            ).length
+        };
+
+        try {
+            await saveQuizResultFn({
+                questions: quizResults.questions,
+                score: quizResults.score
+            });
+            setQuizCompleted(true);
+            toast.success("Quiz completed and results saved!");
+        } catch (error) {
+            toast.error(error.message || "Failed to save quiz results");
+            console.error("Save error:", error);
+        }
+    };
+
+
     const goToNextQuestion = () => {
-        setShowExplanation(false);
-        setCurrentQuestion(currentQuestion + 1);
+        if (currentQuestion < quizData?.length - 1) {
+            setShowExplanation(false);
+            setCurrentQuestion(currentQuestion + 1);
+        } else {
+            finishQuiz();
+        }
     };
 
     const handleRestartQuiz = () => {
@@ -63,40 +106,55 @@ const Quiz = () => {
         setAnswers([]);
         setShowExplanation(false);
         setQuizStarted(false);
+        setQuizCompleted(false);
     };
 
     if (!quizStarted) {
         return (
             <Card className="w-full">
                 <CardHeader>
-                    <CardTitle className="text-2xl">Welcome to the Technical Interview Quiz</CardTitle>
-                    <CardDescription>Test your knowledge with 10 challenging questions</CardDescription>
+                    <CardTitle className="text-2xl">Technical Interview Quiz</CardTitle>
+                    <CardDescription>Challenge yourself with tailored interview questions</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                        <p className="text-gray-600">
-                            This quiz will help you prepare for technical interviews by:
-                        </p>
-                        <ul className="list-disc list-inside space-y-1 text-gray-600">
-                            <li>Testing your understanding of key concepts</li>
-                            <li>Providing detailed explanations for each answer</li>
-                            <li>Simulating real interview scenarios</li>
-                        </ul>
+                <CardContent className="space-y-6">
+                    <div className="space-y-4">
+                        <div className="p-4 bg-gray-50 rounded-lg">
+                            <h3 className="font-semibold mb-2">What to expect:</h3>
+                            <ul className="space-y-2">
+                                <li className="flex items-center gap-2">
+                                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                                    <span>10 carefully curated technical questions</span>
+                                </li>
+                                <li className="flex items-center gap-2">
+                                    <Timer className="h-4 w-4 text-blue-500" />
+                                    <span>Take your time to think through each answer</span>
+                                </li>
+                                <li className="flex items-center gap-2">
+                                    <AlertCircle className="h-4 w-4 text-purple-500" />
+                                    <span>Detailed explanations for each question</span>
+                                </li>
+                            </ul>
+                        </div>
                     </div>
                     <Button 
                         className="w-full" 
                         onClick={startQuiz} 
                         disabled={generatingQuiz || loadingQuiz}
                     >
-                        {generatingQuiz || loadingQuiz ? "Generating Questions..." : "Start Quiz"}
+                        {generatingQuiz || loadingQuiz ? (
+                            <div className="flex items-center gap-2">
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                <span>Generating Questions...</span>
+                            </div>
+                        ) : (
+                            "Start Quiz"
+                        )}
                     </Button>
                     {error && (
                         <Alert variant="destructive">
                             <AlertCircle className="h-4 w-4" />
                             <AlertTitle>Error</AlertTitle>
-                            <AlertDescription>
-                                Failed to generate quiz: {error.message}
-                            </AlertDescription>
+                            <AlertDescription>{error.message}</AlertDescription>
                         </Alert>
                     )}
                 </CardContent>
@@ -107,17 +165,17 @@ const Quiz = () => {
     if (!quizData) {
         return (
             <Card className="w-full">
-                <CardContent className="flex items-center justify-center p-8">
+                <CardContent className="flex items-center justify-center p-12">
                     <div className="text-center space-y-4">
                         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
-                        <p className="text-gray-600">Loading your quiz questions...</p>
+                        <p className="text-gray-600">Preparing your questions...</p>
                     </div>
                 </CardContent>
             </Card>
         );
     }
 
-    if (currentQuestion >= quizData.length) {
+    if (quizCompleted || currentQuestion >= quizData.length) {
         const correctAnswers = quizData.reduce((acc, question, index) => 
             question.correctAnswer === answers[index] ? acc + 1 : acc, 0);
         const percentage = (correctAnswers / quizData.length) * 100;
@@ -125,33 +183,40 @@ const Quiz = () => {
         return (
             <Card className="w-full">
                 <CardHeader>
-                    <CardTitle>Quiz Complete! 🎉</CardTitle>
-                    <CardDescription>Here's how you performed</CardDescription>
+                    <CardTitle className="flex items-center gap-2">
+                        <CheckCircle2 className="h-6 w-6 text-green-500" />
+                        Quiz Complete!
+                    </CardTitle>
+                    <CardDescription>Your results have been saved</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                    <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                            <span>Score</span>
-                            <span>{percentage.toFixed(1)}%</span>
+                    <div className="space-y-4">
+                        <div className="p-4 bg-gray-50 rounded-lg">
+                            <div className="flex justify-between items-center mb-2">
+                                <span className="font-semibold">Final Score</span>
+                                <span className="text-xl font-bold">{percentage.toFixed(1)}%</span>
+                            </div>
+                            <Progress value={percentage} className="h-2" />
                         </div>
-                        <Progress value={percentage} />
+                        <div className="text-center">
+                            <p className="text-2xl font-semibold mb-2">
+                                {correctAnswers} out of {quizData.length} correct
+                            </p>
+                            <p className="text-gray-600">
+                                {percentage >= 80 ? "Outstanding performance! You're interview-ready!" :
+                                 percentage >= 60 ? "Good progress! Keep practicing to improve further!" :
+                                 "Keep learning and practicing - you'll get there!"}
+                            </p>
+                        </div>
                     </div>
-                    <div className="text-center space-y-2">
-                        <p className="text-2xl font-semibold">
-                            {correctAnswers} out of {quizData.length} correct
-                        </p>
-                        <p className="text-gray-600">
-                            {percentage >= 80 ? "Excellent work! You're well-prepared!" :
-                             percentage >= 60 ? "Good job! Keep practicing!" :
-                             "Keep studying! You'll improve!"}
-                        </p>
+                    <div className="space-y-3">
+                        <Button 
+                            className="w-full"
+                            onClick={handleRestartQuiz}
+                        >
+                            Take Another Quiz
+                        </Button>
                     </div>
-                    <Button 
-                        className="w-full" 
-                        onClick={handleRestartQuiz}
-                    >
-                        Try Again
-                    </Button>
                 </CardContent>
             </Card>
         );
@@ -159,6 +224,7 @@ const Quiz = () => {
 
     const currentQuizQuestion = quizData[currentQuestion];
     const isCorrect = showExplanation && answers[currentQuestion] === currentQuizQuestion.correctAnswer;
+    const isLastQuestion = currentQuestion === quizData.length - 1;
 
     return (
         <Card className="w-full">
@@ -212,7 +278,7 @@ const Quiz = () => {
                             className="w-full" 
                             onClick={goToNextQuestion}
                         >
-                            Next Question
+                            {isLastQuestion ? "Finish Quiz" : "Next Question"}
                         </Button>
                     </div>
                 )}

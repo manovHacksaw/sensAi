@@ -197,7 +197,7 @@ export async function saveQuiz(answers: UserAnswer) {
       data: {
         userId: user.id,
         quizScore: score,
-        questions: JSON.stringify(questionResults), //Saving as stringified JSON
+        questions: (questionResults), //Saving as stringified JSON
         category: "Technical",
         improvementTip: improvementTip,
       },

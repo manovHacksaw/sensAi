@@ -101,8 +101,9 @@ const DashboardView = ({ insights, isLoading = false, error }: DashboardViewProp
 
   // Get unique locations for filter
   const locations = useMemo(() => {
+    if (!insights?.salaryRanges) return ['all'];
     const uniqueLocations = new Set<string>(); // Use a Set for efficient uniqueness
-    insights?.salaryRanges.forEach(range => uniqueLocations.add(range.location));  //forEach is faster than map in this case.
+    insights.salaryRanges.forEach(range => uniqueLocations.add(range.location));  //forEach is faster than map in this case.
     return ['all', ...Array.from(uniqueLocations)]; // Convert back to array for rendering
   }, [insights?.salaryRanges]);
 
@@ -127,7 +128,7 @@ const DashboardView = ({ insights, isLoading = false, error }: DashboardViewProp
               </TooltipProvider>
             </h3>
             <div className="flex items-center gap-2">
-              {React.createElement(marketOutlookInfo(insights.marketOutlook).icon, { //Explicitly check if insights exists.
+              {insights.marketOutlook && React.createElement(marketOutlookInfo(insights.marketOutlook).icon, { //Explicitly check if insights exists.
                 className: `h-5 w-5 ${marketOutlookInfo(insights.marketOutlook).color}`
               })}
               <span className="text-xl font-bold">{insights.marketOutlook}</span>
@@ -297,7 +298,7 @@ const DashboardView = ({ insights, isLoading = false, error }: DashboardViewProp
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-2">
-              {insights.topSkills.map((skill) => (
+              {insights.topSkills && insights.topSkills.map((skill) => (
                 <Badge
                   key={skill}
                   variant="outline"
@@ -325,7 +326,7 @@ const DashboardView = ({ insights, isLoading = false, error }: DashboardViewProp
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-2">
-              {insights.recommendedSkills.map((skill) => (
+              {insights.recommendedSkills && insights.recommendedSkills.map((skill) => (
                 <Badge
                   key={skill}
                   variant="secondary"
@@ -469,11 +470,11 @@ const DashboardView = ({ insights, isLoading = false, error }: DashboardViewProp
       <div className="flex flex-col items-center justify-between gap-4 rounded-lg bg-gray-50 p-4 sm:flex-row">
         <span className="flex items-center gap-2 text-sm text-gray-500">
           <RefreshCcw className="h-4 w-4" />
-          Last updated: {insights && format(new Date(insights.lastUpdated), 'MMM d, yyyy')}
+          Last updated: {insights && insights.lastUpdated && format(new Date(insights.lastUpdated), 'MMM d, yyyy')}
         </span>
         <span className="flex items-center gap-2 text-sm text-gray-500">
           <Calendar className="h-4 w-4" />
-          Next update {insights && formatDistanceToNow(new Date(insights.nextUpdate), { addSuffix: true })}
+          Next update {insights && insights.nextUpdate && formatDistanceToNow(new Date(insights.nextUpdate), { addSuffix: true })}
         </span>
       </div>
     </div>
