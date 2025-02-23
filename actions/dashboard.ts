@@ -58,7 +58,7 @@ export async function generateAIInsights (industry: string) {
     }
 }
 
-export async function getIndustryInsights() { // Define data type or remove it.  It wasn't being used.
+export async function getIndustryInsights() { 
     const {userId} = await auth();
 
     if (!userId) {
