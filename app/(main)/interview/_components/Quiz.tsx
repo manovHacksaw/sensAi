@@ -1,290 +1,294 @@
 "use client"
 
-import { generateQuiz, saveQuiz } from '@/actions/interview';
-import useFetch from '@/hooks/useFetch';
-import React, { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { AlertCircle, CheckCircle2, XCircle, Timer } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { toast } from 'sonner';
+import { generateQuiz, saveQuiz } from "@/actions/interview"
+import useFetch from "@/hooks/useFetch"
+import { useState, useEffect } from "react"
+import { toast } from "sonner"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Progress } from "@/components/ui/progress"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Label } from "@/components/ui/label"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Loader2, CheckCircle2, XCircle, ArrowLeft, ArrowRight, Trophy } from "lucide-react"
+import { cn } from "@/lib/utils"
+
+interface QuizQuestion {
+  question: string
+  options: string[]
+  correctAnswer: string
+  explanation: string
+}
+
+interface SaveQuizResult {
+  quizScore: number
+  improvementTip: string
+}
 
 const Quiz = () => {
-    const [currentQuestion, setCurrentQuestion] = useState(0);
-    const [answers, setAnswers] = useState([]);
-    const [showExplanation, setShowExplanation] = useState(false);
-    const [quizStarted, setQuizStarted] = useState(false);
-    const [loadingQuiz, setLoadingQuiz] = useState(false);
-    const [quizCompleted, setQuizCompleted] = useState(false);
+  const { loading: generatingQuiz, fn: generateQuizFn, data: quizData } = useFetch<QuizQuestion[]>(generateQuiz)
+  const { loading: savingQuiz, fn: saveQuizFn, data: resultData } = useFetch<SaveQuizResult>(saveQuiz)
 
-    const {
-        loading: generatingQuiz,
-        fn: generateQuizFn,
-        data: quizData,
-        error
-    } = useFetch(generateQuiz);
+  const [currentQuestion, setCurrentQuestion] = useState(0)
+  const [userAnswers, setUserAnswers] = useState<Record<number, string>>({})
+  const [showResults, setShowResults] = useState(false)
+  const [timeSpent, setTimeSpent] = useState(0)
+  const [timerActive, setTimerActive] = useState(false)
 
-    const {
-        loading: savingResult,
-        fn: saveQuizResultFn,
-        error: saveError
-    } = useFetch(saveQuiz);
+  // Start timer when quiz begins
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null
 
-    const startQuiz = async () => {
-        setLoadingQuiz(true);
-        try {
-            await generateQuizFn();
-            setQuizStarted(true);
-            toast.success("Quiz generated successfully!");
-        } catch (err) {
-            toast.error("Failed to generate quiz. Please try again.");
-        } finally {
-            setLoadingQuiz(false);
-        }
-    };
-
-    const handleAnswer = (selectedAnswer) => {
-        setAnswers([...answers, selectedAnswer]);
-        setShowExplanation(true);
-    };
-
-    const calculateScore = () => {
-        let correct = 0;
-        answers.forEach((answer, index) => {
-            if (answer === quizData[index].correctAnswer) {
-                correct++;
-            }
-        });
-        return (correct / quizData?.length) * 100;
-    };
-
-    const finishQuiz = async () => {
-        const score = calculateScore();
-        
-        // Format the quiz data to match the expected type
-        const quizResults = {
-            questions: quizData.map((q, index) => ({
-                question: q.question,
-                options: q.options,
-                correctAnswer: q.correctAnswer,
-                explanation: q.explanation,
-                userAnswer: answers[index]
-            })),
-            score: score,
-            totalQuestions: quizData.length,
-            correctAnswers: answers.filter((answer, index) => 
-                answer === quizData[index].correctAnswer
-            ).length
-        };
-
-        try {
-            await saveQuizResultFn({
-                questions: quizResults.questions,
-                score: quizResults.score
-            });
-            setQuizCompleted(true);
-            toast.success("Quiz completed and results saved!");
-        } catch (error) {
-            toast.error(error.message || "Failed to save quiz results");
-            console.error("Save error:", error);
-        }
-    };
-
-
-    const goToNextQuestion = () => {
-        if (currentQuestion < quizData?.length - 1) {
-            setShowExplanation(false);
-            setCurrentQuestion(currentQuestion + 1);
-        } else {
-            finishQuiz();
-        }
-    };
-
-    const handleRestartQuiz = () => {
-        setCurrentQuestion(0);
-        setAnswers([]);
-        setShowExplanation(false);
-        setQuizStarted(false);
-        setQuizCompleted(false);
-    };
-
-    if (!quizStarted) {
-        return (
-            <Card className="w-full">
-                <CardHeader>
-                    <CardTitle className="text-2xl">Technical Interview Quiz</CardTitle>
-                    <CardDescription>Challenge yourself with tailored interview questions</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                    <div className="space-y-4">
-                        <div className="p-4 bg-gray-50 rounded-lg">
-                            <h3 className="font-semibold mb-2">What to expect:</h3>
-                            <ul className="space-y-2">
-                                <li className="flex items-center gap-2">
-                                    <CheckCircle2 className="h-4 w-4 text-green-500" />
-                                    <span>10 carefully curated technical questions</span>
-                                </li>
-                                <li className="flex items-center gap-2">
-                                    <Timer className="h-4 w-4 text-blue-500" />
-                                    <span>Take your time to think through each answer</span>
-                                </li>
-                                <li className="flex items-center gap-2">
-                                    <AlertCircle className="h-4 w-4 text-purple-500" />
-                                    <span>Detailed explanations for each question</span>
-                                </li>
-                            </ul>
-                        </div>
-                    </div>
-                    <Button 
-                        className="w-full" 
-                        onClick={startQuiz} 
-                        disabled={generatingQuiz || loadingQuiz}
-                    >
-                        {generatingQuiz || loadingQuiz ? (
-                            <div className="flex items-center gap-2">
-                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                                <span>Generating Questions...</span>
-                            </div>
-                        ) : (
-                            "Start Quiz"
-                        )}
-                    </Button>
-                    {error && (
-                        <Alert variant="destructive">
-                            <AlertCircle className="h-4 w-4" />
-                            <AlertTitle>Error</AlertTitle>
-                            <AlertDescription>{error.message}</AlertDescription>
-                        </Alert>
-                    )}
-                </CardContent>
-            </Card>
-        );
+    if (timerActive && !showResults) {
+      interval = setInterval(() => {
+        setTimeSpent((prev) => prev + 1)
+      }, 1000)
     }
 
-    if (!quizData) {
-        return (
-            <Card className="w-full">
-                <CardContent className="flex items-center justify-center p-12">
-                    <div className="text-center space-y-4">
-                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
-                        <p className="text-gray-600">Preparing your questions...</p>
-                    </div>
-                </CardContent>
-            </Card>
-        );
+    return () => {
+      if (interval) clearInterval(interval)
     }
+  }, [timerActive, showResults])
 
-    if (quizCompleted || currentQuestion >= quizData.length) {
-        const correctAnswers = quizData.reduce((acc, question, index) => 
-            question.correctAnswer === answers[index] ? acc + 1 : acc, 0);
-        const percentage = (correctAnswers / quizData.length) * 100;
-
-        return (
-            <Card className="w-full">
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <CheckCircle2 className="h-6 w-6 text-green-500" />
-                        Quiz Complete!
-                    </CardTitle>
-                    <CardDescription>Your results have been saved</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                    <div className="space-y-4">
-                        <div className="p-4 bg-gray-50 rounded-lg">
-                            <div className="flex justify-between items-center mb-2">
-                                <span className="font-semibold">Final Score</span>
-                                <span className="text-xl font-bold">{percentage.toFixed(1)}%</span>
-                            </div>
-                            <Progress value={percentage} className="h-2" />
-                        </div>
-                        <div className="text-center">
-                            <p className="text-2xl font-semibold mb-2">
-                                {correctAnswers} out of {quizData.length} correct
-                            </p>
-                            <p className="text-gray-600">
-                                {percentage >= 80 ? "Outstanding performance! You're interview-ready!" :
-                                 percentage >= 60 ? "Good progress! Keep practicing to improve further!" :
-                                 "Keep learning and practicing - you'll get there!"}
-                            </p>
-                        </div>
-                    </div>
-                    <div className="space-y-3">
-                        <Button 
-                            className="w-full"
-                            onClick={handleRestartQuiz}
-                        >
-                            Take Another Quiz
-                        </Button>
-                    </div>
-                </CardContent>
-            </Card>
-        );
+  const startQuiz = async () => {
+    try {
+      await generateQuizFn()
+      setUserAnswers({})
+      setCurrentQuestion(0)
+      setShowResults(false)
+      setTimeSpent(0)
+      setTimerActive(true)
+    } catch (error) {
+      toast.error("Failed to generate quiz. Please try again.")
     }
+  }
 
-    const currentQuizQuestion = quizData[currentQuestion];
-    const isCorrect = showExplanation && answers[currentQuestion] === currentQuizQuestion.correctAnswer;
-    const isLastQuestion = currentQuestion === quizData.length - 1;
+  const handleAnswer = (answer: string) => {
+    setUserAnswers((prev) => ({ ...prev, [currentQuestion]: answer }))
+  }
+
+  const handleNext = () => {
+    if (currentQuestion < (quizData?.length || 0) - 1) {
+      setCurrentQuestion((prev) => prev + 1)
+    } else {
+      handleFinish()
+    }
+  }
+
+  const handlePrevious = () => {
+    setCurrentQuestion((prev) => Math.max(0, prev - 1))
+  }
+
+  const handleFinish = async () => {
+    try {
+      setTimerActive(false)
+      // Make sure we're passing the correct format of answers
+      await saveQuizFn(userAnswers)
+      setShowResults(true)
+      toast.success("Quiz completed! Check your results.")
+    } catch (error) {
+      console.error("Error saving quiz:", error)
+      toast.error("Failed to save quiz results. Please try again.")
+    }
+  }
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${mins}:${secs < 10 ? "0" : ""}${secs}`
+  }
+
+  if (generatingQuiz) {
+    return (
+      <Card className="w-full">
+        <CardContent className="flex flex-col items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin mb-4 text-primary" />
+          <p className="text-lg font-medium">Generating your personalized quiz...</p>
+          <p className="text-sm text-muted-foreground mt-2">
+            This may take a moment as we tailor questions to your profile
+          </p>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (!quizData) {
+    return (
+      <Card className="w-full">
+        <CardHeader>
+          <CardTitle>Technical Assessment</CardTitle>
+          <CardDescription>Test your knowledge with personalized questions</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col items-center py-12">
+          <Trophy className="h-16 w-16 text-primary mb-6" />
+          <p className="text-center mb-6 max-w-md">
+            Take this quiz to assess your technical knowledge and get personalized improvement tips. Your results will
+            help you identify areas to focus on.
+          </p>
+          <Button size="lg" onClick={startQuiz}>
+            Start Quiz
+          </Button>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (showResults && resultData) {
+    const correctAnswers = Object.entries(userAnswers).filter(
+      ([index, answer]) => answer === quizData[Number(index)].correctAnswer,
+    ).length
+    const score = (correctAnswers / quizData.length) * 100
 
     return (
-        <Card className="w-full">
-            <CardHeader>
-                <div className="flex justify-between items-center mb-4">
-                    <CardTitle>Question {currentQuestion + 1}</CardTitle>
-                    <span className="text-sm text-gray-500">
-                        {currentQuestion + 1} of {quizData.length}
-                    </span>
-                </div>
-                <Progress value={(currentQuestion / quizData.length) * 100} className="mb-4" />
-                <CardDescription className="text-lg font-medium text-gray-900">
-                    {currentQuizQuestion.question}
-                </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                <div className="grid gap-3">
-                    {currentQuizQuestion.options.map((option, index) => (
-                        <Button
-                            key={index}
-                            variant={showExplanation ? 
-                                (option === currentQuizQuestion.correctAnswer ? "success" :
-                                 option === answers[currentQuestion] ? "destructive" : "outline") : 
-                                "outline"
-                            }
-                            className="w-full text-left justify-start h-auto py-3 px-4"
-                            onClick={() => handleAnswer(option)}
-                            disabled={showExplanation}
-                        >
-                            {option}
-                        </Button>
-                    ))}
-                </div>
+      <Card className="w-full">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Trophy className="h-6 w-6 text-primary" />
+            Quiz Results
+          </CardTitle>
+          <CardDescription>Completed in {formatTime(timeSpent)}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="font-medium">Score: {score.toFixed(1)}%</span>
+              <span>
+                {correctAnswers} of {quizData.length} correct
+              </span>
+            </div>
+            <Progress value={score} className="h-3" />
+          </div>
 
-                {showExplanation && (
-                    <div className="space-y-4 mt-6">
-                        <Alert variant={isCorrect ? "success" : "destructive"}>
-                            {isCorrect ? (
-                                <CheckCircle2 className="h-4 w-4" />
-                            ) : (
-                                <XCircle className="h-4 w-4" />
-                            )}
-                            <AlertTitle>
-                                {isCorrect ? "Correct!" : "Incorrect"}
-                            </AlertTitle>
-                            <AlertDescription>
-                                {currentQuizQuestion.explanation}
-                            </AlertDescription>
-                        </Alert>
-                        <Button 
-                            className="w-full" 
-                            onClick={goToNextQuestion}
-                        >
-                            {isLastQuestion ? "Finish Quiz" : "Next Question"}
-                        </Button>
+          {resultData.improvementTip && (
+            <Alert className="bg-primary/10 border-primary/20">
+              <AlertTitle className="font-medium">Improvement Tip</AlertTitle>
+              <AlertDescription>{resultData.improvementTip}</AlertDescription>
+            </Alert>
+          )}
+
+          <div className="space-y-4 mt-6">
+            <h3 className="font-semibold text-lg">Question Review</h3>
+            {quizData.map((question, index) => {
+              const userAnswer = userAnswers[index]
+              const isCorrect = userAnswer === question.correctAnswer
+
+              return (
+                <div key={index} className="space-y-2 border rounded-lg p-4">
+                  <div className="flex items-start gap-2">
+                    {isCorrect ? (
+                      <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
+                    ) : (
+                      <XCircle className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
+                    )}
+                    <div>
+                      <p className="font-medium">
+                        {index + 1}. {question.question}
+                      </p>
+                      <div className="mt-2 space-y-1">
+                        <p className="text-sm">
+                          <span className="font-medium">Your answer:</span> {userAnswer}
+                        </p>
+                        {!isCorrect && (
+                          <p className="text-sm">
+                            <span className="font-medium">Correct answer:</span> {question.correctAnswer}
+                          </p>
+                        )}
+                        <p className="text-sm text-muted-foreground mt-2">{question.explanation}</p>
+                      </div>
                     </div>
-                )}
-            </CardContent>
-        </Card>
-    );
-};
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </CardContent>
+        <CardFooter>
+          <Button onClick={startQuiz} className="w-full">
+            Try Again
+          </Button>
+        </CardFooter>
+      </Card>
+    )
+  }
 
-export default Quiz;
+  const currentQuestionData = quizData[currentQuestion]
+  const progress = ((currentQuestion + 1) / quizData.length) * 100
+
+  return (
+    <Card className="w-full">
+      <CardHeader>
+        <div className="flex justify-between items-center mb-2">
+          <CardTitle className="text-lg">Technical Assessment</CardTitle>
+          <div className="text-sm font-medium bg-primary/10 text-primary px-3 py-1 rounded-full">
+            Time: {formatTime(timeSpent)}
+          </div>
+        </div>
+        <div className="space-y-2">
+          <Progress value={progress} className="h-2" />
+          <div className="flex justify-between text-sm text-muted-foreground">
+            <span>
+              Question {currentQuestion + 1} of {quizData.length}
+            </span>
+            <span>{progress.toFixed(0)}% Complete</span>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <h2 className="text-xl font-semibold">{currentQuestionData.question}</h2>
+
+        <RadioGroup value={userAnswers[currentQuestion]} onValueChange={handleAnswer} className="space-y-3">
+          {currentQuestionData.options.map((option, index) => (
+            <div
+              key={index}
+              className={cn(
+                "flex items-center space-x-2 border rounded-lg p-3 transition-colors",
+                userAnswers[currentQuestion] === option ? "border-primary bg-primary/5" : "hover:bg-muted/50",
+              )}
+              onClick={() => handleAnswer(option)}
+            >
+              <RadioGroupItem value={option} id={`option-${index}`} />
+              <Label htmlFor={`option-${index}`} className="flex-grow cursor-pointer">
+                {option}
+              </Label>
+            </div>
+          ))}
+        </RadioGroup>
+      </CardContent>
+      <CardFooter className="flex justify-between">
+        <Button
+          variant="outline"
+          onClick={handlePrevious}
+          disabled={currentQuestion === 0}
+          className="flex items-center gap-1"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Previous
+        </Button>
+        <Button
+          onClick={handleNext}
+          disabled={!userAnswers[currentQuestion] || savingQuiz}
+          className="flex items-center gap-1"
+        >
+          {currentQuestion === quizData.length - 1 ? (
+            savingQuiz ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              "Finish"
+            )
+          ) : (
+            <>
+              Next
+              <ArrowRight className="h-4 w-4" />
+            </>
+          )}
+        </Button>
+      </CardFooter>
+    </Card>
+  )
+}
+
+export default Quiz
+

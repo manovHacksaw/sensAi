@@ -77,7 +77,7 @@ export function Navbar() {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
                   <DropdownMenuItem asChild>
-                    <Link href="/dashboard" className="w-full">
+                    <Link href="/interview/mock" className="w-full">
                       <GraduationCapIcon className="mr-2 h-4 w-4" />
                       Interview Preparation
                     </Link>
